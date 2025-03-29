@@ -16,7 +16,6 @@ from quart import (
     current_app, send_file,
 )
 
-from backend.utils import execute_sql_query_and_generate_excel
 from openai import AsyncAzureOpenAI
 from azure.identity.aio import (
     DefaultAzureCredential,
@@ -36,6 +35,7 @@ from backend.utils import (
     convert_to_pf_format,
     format_pf_non_streaming_response,
 )
+from backend.utils import execute_sql_query_and_generate_excel
 
 bp = Blueprint("routes", __name__, static_folder="static", template_folder="static")
 
