@@ -13,9 +13,10 @@ from quart import (
     request,
     send_from_directory,
     render_template,
-    current_app,
+    current_app, send_file,
 )
 
+from backend.utils import execute_sql_query_and_generate_excel
 from openai import AsyncAzureOpenAI
 from azure.identity.aio import (
     DefaultAzureCredential,
@@ -1033,6 +1034,40 @@ async def ensure_cosmos():
         else:
             return jsonify({"error": "CosmosDB is not working"}), 500
 
+@bp.route("/generate_excel", methods=["POST"])
+async def generate_excel():
+    """
+    Endpoint para generar un archivo Excel a partir de una consulta SQL y devolverlo.
+    """
+    try:
+        # Obtener el cuerpo de la solicitud
+        data = await request.get_json()
+        sql_query = data.get("sql_query")
+
+        if not sql_query:
+            return jsonify({"error": "No se proporcionó una consulta SQL"}), 400
+
+        # Generar el archivo Excel
+        output_file = "output.xlsx"
+        file_path = execute_sql_query_and_generate_excel(sql_query, output_file)
+
+        if not file_path:
+            return jsonify({"error": "Error al generar el archivo Excel"}), 500
+
+        # Enviar el archivo Excel como respuesta
+        return await send_file(
+            file_path,
+            as_attachment=True,
+            attachment_filename="resultado.xlsx",
+        )
+    except Exception as e:
+        logging.error(f"Error en el endpoint /generate_excel: {e}")
+        return jsonify({"error": "Error interno del servidor"}), 500
+    finally:
+        # Eliminar el archivo después de enviarlo
+        if os.path.exists(output_file):
+            os.remove(output_file)
+            
 
 async def generate_title(conversation_messages) -> str:
     ## make sure the messages are sorted by _ts descending

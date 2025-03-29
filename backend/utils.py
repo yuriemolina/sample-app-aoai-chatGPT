@@ -3,6 +3,10 @@ import json
 import logging
 import requests
 import dataclasses
+import pyodbc
+import pandas as pd
+
+
 
 from typing import List
 
@@ -76,34 +80,61 @@ def generateFilterString(userToken):
 
 
 def format_non_streaming_response(chatCompletion, history_metadata, apim_request_id):
-    response_obj = {
-        "id": chatCompletion.id,
-        "model": chatCompletion.model,
-        "created": chatCompletion.created,
-        "object": chatCompletion.object,
-        "choices": [{"messages": []}],
-        "history_metadata": history_metadata,
-        "apim-request-id": apim_request_id,
-    }
 
-    if len(chatCompletion.choices) > 0:
-        message = chatCompletion.choices[0].message
-        if message:
-            if hasattr(message, "context"):
+    """
+    Procesa la respuesta del chat y ejecuta el SQL si está presente.
+    """
+    try:
+        messages = []
+        if "sql_query" in chatCompletion:
+            sql_query = chatCompletion["sql_query"]
+            logging.info(f"SQL query capturada: {sql_query}")
+
+            # Generar el archivo Excel
+            output_file = "output.xlsx"
+            file_path = execute_sql_query_and_generate_excel(sql_query, output_file)
+
+            if file_path:
+                # Agregar un mensaje con el enlace al archivo
+                messages.append({
+                    "role": "assistant",
+                    "content": f"El archivo Excel con los resultados está listo. Puedes descargarlo aquí: /generate_excel"
+                })
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "content": "Hubo un error al generar el archivo Excel."
+                })
+
+        response_obj = {
+            "id": chatCompletion.id,
+            "model": chatCompletion.model,
+            "created": chatCompletion.created,
+            "object": chatCompletion.object,
+            "choices": [{"messages": []}],
+            "history_metadata": history_metadata,
+            "apim-request-id": apim_request_id,
+        }
+
+        if len(chatCompletion.choices) > 0:
+            message = chatCompletion.choices[0].message
+            if message:
+                if hasattr(message, "context"):
+                    response_obj["choices"][0]["messages"].append(
+                        {
+                            "role": "tool",
+                            "content": json.dumps(message.context),
+                        }
+                    )
                 response_obj["choices"][0]["messages"].append(
                     {
-                        "role": "tool",
-                        "content": json.dumps(message.context),
+                        "role": "assistant",
+                        "content": message.content,
                     }
                 )
-            response_obj["choices"][0]["messages"].append(
-                {
-                    "role": "assistant",
-                    "content": message.content,
-                }
-            )
-            return response_obj
-
+                return response_obj
+    except Exception as e:
+        logging.error(f"Exception in format_non_streaming_response: {e}")
     return {}
 
 def format_stream_response(chatCompletionChunk, history_metadata, apim_request_id):
@@ -229,4 +260,42 @@ def comma_separated_string_to_list(s: str) -> List[str]:
     Split comma-separated values into a list.
     '''
     return s.strip().replace(' ', '').split(',')
+
+def execute_sql_query_and_generate_excel(sql_query: str, output_file: str) -> str:
+    """
+    Ejecuta un script SQL en el servidor de base de datos y genera un archivo Excel con los resultados.
+    """
+    try:
+        # Configura tu conexión a la base de datos
+        connection = pyodbc.connect(
+            "DRIVER={SQL Server};"
+            "SERVER=dwdiunsa;"
+            "DATABASE=diunsa_dw;"
+            "UID=bi;"
+            "PWD=Jupiter123#;"
+        )
+        cursor = connection.cursor()
+
+        # Ejecutar la consulta SQL
+        cursor.execute(sql_query)
+        columns = [column[0] for column in cursor.description]  # Obtener nombres de columnas
+        rows = cursor.fetchall()  # Obtener los datos
+
+        # Crear un DataFrame con los resultados
+        df = pd.DataFrame.from_records(rows, columns=columns)
+
+        # Guardar los resultados en un archivo Excel
+        df.to_excel(output_file, index=False, engine='openpyxl')
+        logging.info(f"Archivo Excel generado exitosamente: {output_file}")
+
+        return output_file
+    except Exception as e:
+        logging.error(f"Error al ejecutar la consulta SQL o generar el archivo Excel: {e}")
+        return None
+    finally:
+        cursor.close()
+        connection.close()
+
+
+
 
