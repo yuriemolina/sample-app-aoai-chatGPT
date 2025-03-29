@@ -41,11 +41,11 @@ class _UiSettings(BaseSettings):
         env_ignore_empty=True
     )
 
-    title: str = "Contoso"
+    title: str = "Diunsa - MK"
     logo: Optional[str] = None
     chat_logo: Optional[str] = None
     chat_title: str = "Start chatting"
-    chat_description: str = "This chatbot is configured to answer your questions"
+    chat_description: str = "Este chatbot esta configurado para generar listas de clientes basados en los criterios que especifique."
     favicon: str = "/favicon.ico"
     show_share_button: bool = True
     show_chat_history_button: bool = True
