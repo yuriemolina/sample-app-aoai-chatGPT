@@ -1067,7 +1067,7 @@ async def generate_excel():
         # Eliminar el archivo después de enviarlo
         if os.path.exists(output_file):
             os.remove(output_file)
-            
+
 
 async def generate_title(conversation_messages) -> str:
     ## make sure the messages are sorted by _ts descending
@@ -1090,6 +1090,6 @@ async def generate_title(conversation_messages) -> str:
     except Exception as e:
         logging.exception("Exception while generating title", e)
         return messages[-2]["content"]
-
+#modificado
 
 app = create_app()
